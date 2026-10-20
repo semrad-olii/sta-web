@@ -65,69 +65,82 @@
     $$(".rv").forEach(function (el) { io.observe(el); });
   } else { $$(".rv").forEach(function (el) { el.classList.add("is-in"); }); }
 
-  /* Galerie: filtry + načíst další */
+  /* Galerie: filtry (výrobek + velikost) + načíst další */
   var grid = $("[data-gallery]");
   if (grid) {
-    var items = $$(".gi", grid), filter = "vse", limit = parseInt(grid.dataset.limit || "6", 10);
+    var items = $$(".gi", grid), f = { cat: "vse", size: "vse" }, step = parseInt(grid.dataset.limit || "9", 10), limit = step;
     var moreBtn = $("[data-more]"), counter = $("[data-count]");
     var render = function () {
       var shown = 0, total = 0;
       items.forEach(function (it) {
-        var ok = filter === "vse" || it.dataset.cat === filter;
+        var ok = (f.cat === "vse" || (" " + it.dataset.cat + " ").indexOf(" " + f.cat + " ") > -1) &&
+                 (f.size === "vse" || (" " + it.dataset.size + " ").indexOf(" " + f.size + " ") > -1);
         if (ok) total++;
         var vis = ok && shown < limit;
         if (vis) shown++;
         it.classList.toggle("is-hidden", !vis);
       });
-      if (counter) counter.textContent = "Zobrazeno " + shown + " z " + total + " zakázek";
+      if (counter) counter.textContent = total ? "Zobrazeno " + shown + " z " + total + " zakázek" : "V této kombinaci zatím nemáme fotky – napište nám, rádi pošleme ukázky.";
       if (moreBtn) moreBtn.style.display = shown < total ? "" : "none";
     };
     $$(".chip[data-filter]").forEach(function (c) {
+      var group = c.dataset.group || "cat";
       c.addEventListener("click", function () {
-        $$(".chip[data-filter]").forEach(function (x) { x.classList.remove("is-active"); x.setAttribute("aria-pressed", "false"); });
+        $$('.chip[data-filter][data-group="' + group + '"]').forEach(function (x) { x.classList.remove("is-active"); x.setAttribute("aria-pressed", "false"); });
         c.classList.add("is-active"); c.setAttribute("aria-pressed", "true");
-        filter = c.dataset.filter; limit = parseInt(grid.dataset.limit || "6", 10); render();
+        f[group] = c.dataset.filter; limit = step; render();
       });
     });
-    if (moreBtn) moreBtn.addEventListener("click", function () { limit += 6; render(); });
+    var q = new URLSearchParams(location.search);
+    ["cat", "size"].forEach(function (g) {
+      var v = q.get(g === "cat" ? "vyrobek" : "velikost");
+      var c = v && $('.chip[data-group="' + g + '"][data-filter="' + v + '"]');
+      if (c) c.click();
+    });
+    if (moreBtn) moreBtn.addEventListener("click", function () { limit += step; render(); });
     render();
+  }
 
-    /* Lightbox */
-    var lb = $(".lb"), stage = $(".lb__media", lb), title = $("[data-lb-title]", lb), count = $("[data-lb-count]", lb),
-        cap = $("[data-lb-cap]", lb), link = $("[data-lb-link]", lb), thumbs = $(".lb__thumbs", lb), idx = 0, lastFocus;
-    var visible = function () { return items.filter(function (i) { return !i.classList.contains("is-hidden"); }); };
+  /* Lightbox – fotky jedné zakázky (jakýkoli prvek s data-set) */
+  var lb = $(".lb");
+  if (lb) {
+    var stage = $(".lb__media", lb), title = $("[data-lb-title]", lb), count = $("[data-lb-count]", lb),
+        cap = $("[data-lb-cap]", lb), link = $("[data-lb-link]", lb), thumbs = $(".lb__thumbs", lb),
+        photos = [], idx = 0, lastFocus;
+    var miss = function (img) { img.addEventListener("error", function () { img.parentElement.classList.add("is-missing"); }); };
     var show = function (i) {
-      var list = visible(); if (!list.length) return;
-      idx = (i + list.length) % list.length;
-      var it = list[idx], d = it.dataset;
-      title.textContent = d.title; cap.textContent = d.desc || "";
-      count.textContent = (idx + 1) + " / " + list.length;
-      link.href = d.href || "zakazka.html";
-      if (d.ba) {
-        stage.innerHTML = '<div class="ba"><div class="ba__layer ba__after" style="background-image:url(' + d.img + ')"></div><div class="ba__layer ba__before" style="background-image:url(' + d.img + ')"></div><div class="ba__line"></div><div class="ba__handle">' + ICON_LR + '</div><span class="ba__tag ba__tag--b">Před opravou</span><span class="ba__tag ba__tag--a">Po opravě</span><input class="ba__range" type="range" min="0" max="100" value="50" aria-label="Porovnání před a po opravě"></div>';
-        initBA(stage);
-      } else {
-        stage.innerHTML = '<div class="media" data-ph="' + d.img + '"><img src="' + d.img + '" alt="' + d.title + '"></div>';
-        var im = $("img", stage); im.addEventListener("error", function () { im.parentElement.classList.add("is-missing"); });
-      }
-      thumbs.innerHTML = "";
-      list.forEach(function (x, n) {
-        var b = document.createElement("button");
-        b.type = "button"; b.className = n === idx ? "is-active" : ""; b.setAttribute("aria-label", x.dataset.title);
-        b.innerHTML = '<div class="media"><img src="' + x.dataset.img + '" alt=""></div>';
-        var ti = b.querySelector("img"); ti.addEventListener("error", function () { ti.parentElement.classList.add("is-missing"); });
-        b.addEventListener("click", function () { show(n); });
-        thumbs.appendChild(b);
-      });
+      if (!photos.length) return;
+      idx = (i + photos.length) % photos.length;
+      count.textContent = (idx + 1) + " / " + photos.length;
+      stage.innerHTML = '<div class="media"><img src="img/z/' + photos[idx] + '" alt="' + title.textContent + ' – fotka ' + (idx + 1) + '"></div>';
+      miss($("img", stage));
+      $$("button", thumbs).forEach(function (b, n) { b.classList.toggle("is-active", n === idx); });
+      var a = $$("button", thumbs)[idx]; if (a && a.scrollIntoView) a.scrollIntoView({ block: "nearest", inline: "center" });
     };
-    var ICON_LR = '<svg class="icon" viewBox="0 0 24 24"><path d="m15 18 6-6-6-6M9 6l-6 6 6 6"/></svg>';
-    var open = function (it) { lastFocus = document.activeElement; show(visible().indexOf(it)); lb.classList.add("is-open"); document.body.style.overflow = "hidden"; $("[data-lb-close]", lb).focus(); };
+    var open = function (el, start) {
+      var d = el.dataset; lastFocus = document.activeElement;
+      photos = d.set.split("|"); title.textContent = d.title || ""; cap.textContent = d.desc || "";
+      if (link) { if (d.href) { link.href = d.href; link.style.display = ""; link.firstChild.textContent = d.linkLabel || "Detail zakázky"; } else link.style.display = "none"; }
+      thumbs.innerHTML = "";
+      photos.forEach(function (p, n) {
+        var b = document.createElement("button"); b.type = "button"; b.setAttribute("aria-label", "Fotka " + (n + 1));
+        b.innerHTML = '<div class="media"><img src="img/z/t/' + p + '" alt="" loading="lazy"></div>';
+        miss($("img", b)); b.addEventListener("click", function () { show(n); }); thumbs.appendChild(b);
+      });
+      lb.classList.add("is-open"); document.body.style.overflow = "hidden";
+      show(start || 0); $("[data-lb-close]", lb).focus();
+    };
     var close = function () { lb.classList.remove("is-open"); document.body.style.overflow = ""; if (lastFocus) lastFocus.focus(); };
-    items.forEach(function (it) { it.addEventListener("click", function () { open(it); }); });
+    $$("[data-set]").forEach(function (el) {
+      el.addEventListener("click", function (e) { e.preventDefault(); open(el, parseInt(el.dataset.start || "0", 10)); });
+    });
     $("[data-lb-close]", lb).addEventListener("click", close);
     $("[data-lb-prev]", lb).addEventListener("click", function () { show(idx - 1); });
     $("[data-lb-next]", lb).addEventListener("click", function () { show(idx + 1); });
-    lb.addEventListener("click", function (e) { if (e.target === lb) close(); });
+    lb.addEventListener("click", function (e) { if (e.target === lb || e.target.classList.contains("lb__stage")) close(); });
+    var tx = null;
+    lb.addEventListener("touchstart", function (e) { tx = e.touches[0].clientX; }, { passive: true });
+    lb.addEventListener("touchend", function (e) { if (tx === null) return; var dx = e.changedTouches[0].clientX - tx; if (Math.abs(dx) > 50) show(idx + (dx < 0 ? 1 : -1)); tx = null; });
     document.addEventListener("keydown", function (e) {
       if (!lb.classList.contains("is-open")) return;
       if (e.key === "Escape") close();

@@ -2,7 +2,12 @@
 
 Čisté HTML + CSS + JS, žádný build ani server. Stačí nahrát celou složku na libovolný hosting.
 
-## 1. Doplnit fotky (jednorázově)
+## Fotky
+
+- `img/z/` – skutečné fotky zakázek od klienta (velké) a `img/z/t/` (náhledy). Jsou už v balíčku.
+- Ostatní fotky v `img/` (pozadí, mapa, ilustrace) pocházejí z Figmy – postup exportu níže.
+
+## 1. Doplnit fotky z Figmy (jednorázově)
 
 Fotky nejsou součástí balíčku – vyexportujte je z Figmy:
 
